@@ -8,7 +8,7 @@
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #000); padding: 15px; margin: 0; }
         h2, h3 { color: var(--tg-theme-button-color, #2481cc); margin-top: 10px; }
-        .admin-panel { display: none; background: var(--tg-theme-secondary-bg-color, #f4f4f5); padding: 15px; border-radius: 10px; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .admin-panel { background: var(--tg-theme-secondary-bg-color, #f4f4f5); padding: 15px; border-radius: 10px; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .form-group { margin-bottom: 12px; }
         label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
         input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; background: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #000); font-size: 16px; }
@@ -24,8 +24,8 @@
 
     <h2>📊 Учет ошибок склада</h2>
 
-    <!-- Форма ввода -->
-    <div id="adminForm" class="admin-panel">
+    <!-- Форма ввода принудительно открыта для проверки связи -->
+    <div id="adminForm" class="admin-panel" style="display: block;">
         <h3>Добавить новую ошибку</h3>
         <div class="form-group">
             <label>Дата ошибки</label>
@@ -66,42 +66,35 @@
 
     <script>
         const tg = window.Telegram.WebApp;
-        if (tg) {
-            tg.expand();
-            // Жесткая проверка ваших прав по Telegram ID
-            if (tg.initDataUnsafe && tg.initDataUnsafe.user && Number(tg.initDataUnsafe.user.id) === 868803059) {
-                document.getElementById('adminForm').style.display = 'block';
-            }
-        }
+        if (tg) tg.expand();
 
-        // ВСТАВЬТЕ СЮДА ВАШУ ССЫЛКУ ВЕБ-ПРИЛОЖЕНИЯ ИЗ GOOGLE ТАБЛИЦЫ (из Шага 1)
-        const GOOGLE_API_URL = 'https://script.google.com/macros/s/AKfycbwqOdxXVSh23Urvb7W8jQokcYXOnwNzribgjsadQPLUesiqFza6wSy66h-wsHmeUKI2/exec'; 
+        // https://script.google.com/macros/s/AKfycbwqOdxXVSh23Urvb7W8jQokcYXOnwNzribgjsadQPLUesiqFza6wSy66h-wsHmeUKI2/exec
+        const GOOGLE_API_URL = 'ВСТАВЬТЕ_СЮДА_URL_ИЗ_GOOGLE'; 
 
         document.getElementById('date').value = new Date().toISOString().split('T')[0];
 
-        // Безопасная загрузка данных без блокировок CORS
+        // Глобальный Callback-приемник для метода JSONP (работает в обход CORS)
+        window.handleData = function(data) {
+            let html = '';
+            const filteredData = data.filter(row => row.name !== 'Работник' && row.name.trim() !== '');
+            
+            if (filteredData.length === 0) {
+                html = '<tr><td colspan="2" class="loading">Ошибок пока нет. Все работают отлично!</td></tr>';
+            } else {
+                filteredData.forEach(row => {
+                    html += `<tr><td><b>${row.name}</b></td><td>${row.errors}</td></tr>`;
+                });
+            }
+            document.getElementById('tableBody').innerHTML = html;
+        };
+
+        // Загрузка данных методом динамических тегов скрипта (Защита CORS пробита)
         function loadReport() {
-            fetch(GOOGLE_API_URL)
-            .then(res => res.json())
-            .then(data => {
-                let html = '';
-                const filteredData = data.filter(row => row.name !== 'Работник' && row.name.trim() !== '');
-                
-                if (filteredData.length === 0) {
-                    html = '<tr><td colspan="2" class="loading">Ошибок пока нет. Все работают отлично!</td></tr>';
-                } else {
-                    filteredData.forEach(row => {
-                        html += `<tr><td><b>${row.name}</b></td><td>${row.errors}</td></tr>`;
-                    });
-                }
-                document.getElementById('tableBody').innerHTML = html;
-            })
-            .catch(err => {
-                document.getElementById('tableBody').innerHTML = `<tr><td colspan="2" class="loading" style="color:red;">Ошибка соединения с базой: ${err}</td></tr>`;
-            });
+            const script = document.createElement('script');
+            script.src = GOOGLE_API_URL + '?callback=handleData&_ts=' + new Date().getTime();
+            document.body.appendChild(script);
         }
 
-        // Надежная отправка формы
         function sendData() {
             const dateVal = document.getElementById('date').value;
             const clientVal = document.getElementById('client').value.trim();
@@ -129,12 +122,13 @@
             .then(() => {
                 document.getElementById('client').value = '';
                 document.getElementById('worker').value = '';
-                alert('Данные успешно записаны в таблицу!');
-                setTimeout(loadReport, 1500); // Перезагружаем таблицу на экране с задержкой
+                alert('Данные успешно отправлены!');
+                setTimeout(loadReport, 1500);
             })
             .catch(err => alert('Ошибка при отправке: ' + err));
         }
 
+        // Запуск
         loadReport();
     </script>
 </body>
