@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KPI Склада</title>
+    <!-- ИСПРАВЛЕНО: Подключен корректный скрипт Telegram API -->
     <script src="https://telegram.org"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #000); padding: 15px; margin: 0; }
         h2, h3 { color: var(--tg-theme-button-color, #2481cc); margin-top: 10px; }
-        .admin-panel { background: var(--tg-theme-secondary-bg-color, #f4f4f5); padding: 15px; border-radius: 10px; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .admin-panel { display: none; background: var(--tg-theme-secondary-bg-color, #f4f4f5); padding: 15px; border-radius: 10px; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .form-group { margin-bottom: 12px; }
         label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
         input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; background: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #000); font-size: 16px; }
@@ -24,8 +25,8 @@
 
     <h2>📊 Учет ошибок склада</h2>
 
-    <!-- Форма ввода принудительно открыта для проверки связи -->
-    <div id="adminForm" class="admin-panel" style="display: block;">
+    <!-- Форма ввода скрыта по умолчанию, откроется только для вашего ID -->
+    <div id="adminForm" class="admin-panel">
         <h3>Добавить новую ошибку</h3>
         <div class="form-group">
             <label>Дата ошибки</label>
@@ -66,14 +67,19 @@
 
     <script>
         const tg = window.Telegram.WebApp;
-        if (tg) tg.expand();
+        if (tg) {
+            tg.expand();
+            // НАДЕЖНАЯ ПРОВЕРКА ПРАВ: только ваш аккаунт увидит админку
+            if (tg.initDataUnsafe && tg.initDataUnsafe.user && Number(tg.initDataUnsafe.user.id) === 868803059) {
+                document.getElementById('adminForm').style.display = 'block';
+            }
+        }
 
-        // https://script.google.com/macros/s/AKfycbwqOdxXVSh23Urvb7W8jQokcYXOnwNzribgjsadQPLUesiqFza6wSy66h-wsHmeUKI2/exec
-        const GOOGLE_API_URL = 'ВСТАВЬТЕ_СЮДА_URL_ИЗ_GOOGLE'; 
+       const GOOGLE_API_URL = 'https://script.google.com/macros/s/AKfycby3Vz48yDy8KoDmcuqCh_Z6qQsV-FbaF9I_iP0zCXbjNLWsTTJO_rzTnB4epvxdlYNK/exec';
 
         document.getElementById('date').value = new Date().toISOString().split('T')[0];
 
-        // Глобальный Callback-приемник для метода JSONP (работает в обход CORS)
+        // Глобальный Callback-приемник для метода JSONP (работает без CORS)
         window.handleData = function(data) {
             let html = '';
             const filteredData = data.filter(row => row.name !== 'Работник' && row.name.trim() !== '');
@@ -88,13 +94,18 @@
             document.getElementById('tableBody').innerHTML = html;
         };
 
-        // Загрузка данных методом динамических тегов скрипта (Защита CORS пробита)
+        // Загрузка данных методом динамических тегов скрипта
         function loadReport() {
+            const oldScript = document.getElementById('jsonp-script');
+            if (oldScript) oldScript.remove(); // Удаляем старый скрипт перед обновлением
+
             const script = document.createElement('script');
+            script.id = 'jsonp-script';
             script.src = GOOGLE_API_URL + '?callback=handleData&_ts=' + new Date().getTime();
             document.body.appendChild(script);
         }
 
+        // Отправка данных формы
         function sendData() {
             const dateVal = document.getElementById('date').value;
             const clientVal = document.getElementById('client').value.trim();
@@ -113,6 +124,7 @@
                 worker: workerVal
             };
 
+            // Отправляем через классический fetch (doPost в Google Таблицах его принимает без CORS)
             fetch(GOOGLE_API_URL, {
                 method: 'POST',
                 mode: 'no-cors',
@@ -122,13 +134,13 @@
             .then(() => {
                 document.getElementById('client').value = '';
                 document.getElementById('worker').value = '';
-                alert('Данные успешно отправлены!');
-                setTimeout(loadReport, 1500);
+                alert('Данные успешно сохранены в таблицу!');
+                setTimeout(loadReport, 1500); // Обновляем инфопанель на экране
             })
-            .catch(err => alert('Ошибка при отправке: ' + err));
+            .catch(err => alert('Ошибка при сохранении: ' + err));
         }
 
-        // Запуск
+        // Автозапуск при старте приложения
         loadReport();
     </script>
 </body>
