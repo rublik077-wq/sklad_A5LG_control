@@ -63,42 +63,64 @@
         </tbody>
     </table>
 
-    <script>
-        // Ссылка из строки 78
-       const GOOGLE_API_URL = 'https://script.google.com/macros/s/AKfycby3Vz48yDy8KoDmcuqCh_Z6qQsV-FbaF9I_iP0zCXbjNLWsTTJO_rzTnB4epvxdlYNK/exec';
-        document.getElementById('date').value = new Date().toISOString().split('T')[0];
-const GOOGLE_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQJ3RBC0TXSz-h7RPeMaHKOemqYEZoxz1RV8iNnDtHGJQIdUZ9mhzmIwakGkAqj-XcVZpytMz-9FeHe/pub?gid=1159113882&single=true&output=csv';
-        
-        // Приемник данных (JSONP)
-        window.handleData = function(data) {
-            let html = '';
-            if (!data || data.length === 0) {
-                html = '<tr><td colspan="2" class="loading">Ошибок пока нет. Все работают отлично!</td></tr>';
-            } else {
-                const filteredData = data.filter(row => row.name !== 'Работник' && row.name.trim() !== '');
-                if (filteredData.length === 0) {
-                    html = '<tr><td colspan="2" class="loading">Ошибок пока нет. Все работают отлично!</td></tr>';
-                } else {
-                    filteredData.forEach(row => {
-                        html += `<tr><td><b>${row.name}</b></td><td>${row.errors}</td></tr>`;
-                    });
-                }
+     <script>
+        const tg = window.Telegram.WebApp;
+        if (tg) {
+            tg.expand();
+            // ЗАЩИТА: Форма ввода откроется СТРОГО под вашим Telegram ID
+            if (tg.initDataUnsafe && tg.initDataUnsafe.user && Number(tg.initDataUnsafe.user.id) === 868803059) {
+                document.getElementById('adminForm').style.display = 'block';
             }
-            document.getElementById('tableBody').innerHTML = html;
-        };
-
-        // Безопасный запрос сводки без ограничений CORS
-        function loadReport() {
-            const oldScript = document.getElementById('jsonp-script');
-            if (oldScript) oldScript.remove();
-
-            const script = document.createElement('script');
-            script.id = 'jsonp-script';
-            script.src = GOOGLE_API_URL + '?callback=handleData&_ts=' + new Date().getTime();
-            document.body.appendChild(script);
         }
 
-        // Отправка формы в таблицу
+        // Ссылка из строки 79 (для отправки данных)
+        const GOOGLE_POST_URL = 'https://script.google.com/macros/s/AKfycby3Vz48yDy8KoDmcuqCh_Z6qQsV-FbaF9I_iP0zCXbjNLWsTTJO_rzTnB4epvxdlYNK/exec'; 
+
+        // 🛑 УБЕДИТЕСЬ, ЧТО ТУТ СТОИТ ВАША ССЫЛКА НА CSV (Значения, разделенные запятыми)
+        const GOOGLE_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQJ3RBC0TXSz-h7RPeMaHKOemqYEZoxz1RV8iNnDtHGJQIdUZ9mhzmIwakGkAqj-XcVZpytMz-9FeHe/pub?gid=1159113882&single=true&output=csv';
+
+        document.getElementById('date').value = new Date().toISOString().split('T')[0];
+
+        // Универсальная загрузка данных с автоматическим определением разделителя (; или ,)
+        function loadReport() {
+            fetch(GOOGLE_CSV_URL + (GOOGLE_CSV_URL.includes('?') ? '&' : '?') + '_ts=' + new Date().getTime())
+            .then(res => res.text())
+            .then(text => {
+                let html = '';
+                const lines = text.split('\n');
+                let count = 0;
+                
+                lines.forEach(line => {
+                    if (line.trim() !== '') {
+                        // ИСПРАВЛЕНО: Автоматически определяем разделитель (запятая или точка с запятой)
+                        const separator = line.includes(';') ? ';' : ',';
+                        const columns = line.split(separator);
+                        
+                        if (columns[0]) {
+                            const name = columns[0].replace(/"/g, '').trim();
+                            
+                            // Пропускаем заголовок таблицы и пустые строки
+                            if (name !== 'Работник' && name !== 'Сотрудник' && name !== 'Фамилия' && name !== '') {
+                                // Собираем обратно строку ошибок, очищая от лишних кавычек
+                                const errors = columns.slice(1).join(', ').replace(/"/g, '').trim();
+                                html += `<tr><td><b>${name}</b></td><td>${errors}</td></tr>`;
+                                count++;
+                            }
+                        }
+                    }
+                });
+                
+                if (count === 0) {
+                    html = '<tr><td colspan="2" class="loading">Ошибок пока нет. Все работают отлично!</td></tr>';
+                }
+                document.getElementById('tableBody').innerHTML = html;
+            })
+            .catch(err => {
+                document.getElementById('tableBody').innerHTML = `<tr><td colspan="2" class="loading" style="color:red;">Ошибка загрузки KPI: ${err}</td></tr>`;
+            });
+        }
+
+        // Надежная отправка формы
         function sendData() {
             const dateVal = document.getElementById('date').value;
             const clientVal = document.getElementById('client').value.trim();
@@ -117,7 +139,7 @@ const GOOGLE_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQJ3RBC0
                 worker: workerVal
             };
 
-            fetch(GOOGLE_API_URL, {
+            fetch(GOOGLE_POST_URL, {
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'application/json' },
@@ -127,12 +149,13 @@ const GOOGLE_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQJ3RBC0
                 document.getElementById('client').value = '';
                 document.getElementById('worker').value = '';
                 alert('Данные успешно сохранены в таблицу!');
-                setTimeout(loadReport, 1500); // Обновляем сводку на экране
+                // Даем Google 2 секунды на пересчет формул перед обновлением экрана
+                setTimeout(loadReport, 2000);
             })
             .catch(err => alert('Ошибка при сохранении: ' + err));
         }
 
-        // Запуск загрузки
+        // Автозапуск загрузки сводки при старте
         loadReport();
     </script>
 </body>
