@@ -67,7 +67,8 @@
         // Ссылка из строки 78
        const GOOGLE_API_URL = 'https://script.google.com/macros/s/AKfycby3Vz48yDy8KoDmcuqCh_Z6qQsV-FbaF9I_iP0zCXbjNLWsTTJO_rzTnB4epvxdlYNK/exec';
         document.getElementById('date').value = new Date().toISOString().split('T')[0];
-
+const GOOGLE_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQJ3RBC0TXSz-h7RPeMaHKOemqYEZoxz1RV8iNnDtHGJQIdUZ9mhzmIwakGkAqj-XcVZpytMz-9FeHe/pub?gid=1159113882&single=true&output=csv';
+        
         // Приемник данных (JSONP)
         window.handleData = function(data) {
             let html = '';
