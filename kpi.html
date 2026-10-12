@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KPI Склада</title>
+    <script src="https://telegram.org"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #fff; color: #000; padding: 15px; margin: 0; }
-        h2, h3 { color: #2481cc; margin-top: 10px; }
-        .admin-panel { background: #f4f4f5; padding: 15px; border-radius: 10px; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        h2, h3 { color: var(--tg-theme-button-color, #2481cc); margin-top: 10px; }
+        .admin-panel { display: none; background: #f4f4f5; padding: 15px; border-radius: 10px; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .form-group { margin-bottom: 12px; }
         label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
         input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; background: #fff; color: #000; font-size: 16px; }
@@ -23,8 +24,8 @@
 
     <h2>📊 Учет ошибок склада</h2>
 
-    <!-- Форма ввода принудительно открыта у ВСЕХ для проверки связи -->
-    <div id="adminForm" class="admin-panel" style="display: block;">
+    <!-- ИСПРАВЛЕНО: Убран конфликтный принудительный display:block. Теперь форму контролирует только ваш ID -->
+    <div id="adminForm" class="admin-panel">
         <h3>Добавить новую ошибку</h3>
         <div class="form-group">
             <label>Дата ошибки</label>
@@ -63,45 +64,40 @@
         </tbody>
     </table>
 
-     <script>
+    <script>
         const tg = window.Telegram.WebApp;
         if (tg) {
             tg.expand();
-            // ЗАЩИТА: Форма ввода откроется СТРОГО под вашим Telegram ID
+            // НАДЕЖНАЯ ПРОВЕРКА ПРАВ: только ваш аккаунт увидит админку
             if (tg.initDataUnsafe && tg.initDataUnsafe.user && Number(tg.initDataUnsafe.user.id) === 868803059) {
                 document.getElementById('adminForm').style.display = 'block';
             }
         }
 
-        // Ссылка из строки 79 (для отправки данных)
         const GOOGLE_POST_URL = 'https://script.google.com/macros/s/AKfycby3Vz48yDy8KoDmcuqCh_Z6qQsV-FbaF9I_iP0zCXbjNLWsTTJO_rzTnB4epvxdlYNK/exec'; 
-
-        // 🛑 УБЕДИТЕСЬ, ЧТО ТУТ СТОИТ ВАША ССЫЛКА НА CSV (Значения, разделенные запятыми)
         const GOOGLE_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQJ3RBC0TXSz-h7RPeMaHKOemqYEZoxz1RV8iNnDtHGJQIdUZ9mhzmIwakGkAqj-XcVZpytMz-9FeHe/pub?gid=1159113882&single=true&output=csv';
 
         document.getElementById('date').value = new Date().toISOString().split('T')[0];
 
-        // Универсальная загрузка данных с автоматическим определением разделителя (; или ,)
         function loadReport() {
             fetch(GOOGLE_CSV_URL + (GOOGLE_CSV_URL.includes('?') ? '&' : '?') + '_ts=' + new Date().getTime())
             .then(res => res.text())
             .then(text => {
                 let html = '';
-                const lines = text.split('\n');
+                // ИСПРАВЛЕНО: Учитываем Windows-переносы строк \(\r\\)n из файлов Google CSV
+                const lines = text.split(\(/\r\)?\n/);
                 let count = 0;
                 
                 lines.forEach(line => {
                     if (line.trim() !== '') {
-                        // ИСПРАВЛЕНО: Автоматически определяем разделитель (запятая или точка с запятой)
                         const separator = line.includes(';') ? ';' : ',';
                         const columns = line.split(separator);
                         
                         if (columns[0]) {
                             const name = columns[0].replace(/"/g, '').trim();
                             
-                            // Пропускаем заголовок таблицы и пустые строки
-                            if (name !== 'Работник' && name !== 'Сотрудник' && name !== 'Фамилия' && name !== '') {
-                                // Собираем обратно строку ошибок, очищая от лишних кавычек
+                            // ИСПРАВЛЕНО: Надежная фильтрация заголовков и служебных строк Google
+                            if (name !== 'Работник' && name !== 'Сотрудник' && name !== 'Фамилия' && name !== '' && !name.startsWith('http')) {
                                 const errors = columns.slice(1).join(', ').replace(/"/g, '').trim();
                                 html += `<tr><td><b>${name}</b></td><td>${errors}</td></tr>`;
                                 count++;
@@ -120,7 +116,6 @@
             });
         }
 
-        // Надежная отправка формы
         function sendData() {
             const dateVal = document.getElementById('date').value;
             const clientVal = document.getElementById('client').value.trim();
@@ -149,13 +144,11 @@
                 document.getElementById('client').value = '';
                 document.getElementById('worker').value = '';
                 alert('Данные успешно сохранены в таблицу!');
-                // Даем Google 2 секунды на пересчет формул перед обновлением экрана
-                setTimeout(loadReport, 2000);
+                setTimeout(loadReport, 2000); // Обновляем сводку
             })
             .catch(err => alert('Ошибка при сохранении: ' + err));
         }
 
-        // Автозапуск загрузки сводки при старте
         loadReport();
     </script>
 </body>
